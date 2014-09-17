@@ -213,6 +213,12 @@ for InTSFolder in InTSFolderList:
     # initialise processing pipeline
     pl = pipeline.ImagePipeline(plConf.pipeline, ctx)
 
+    # set csv output folder
+    for component in pl.pipeline:
+        if component.actName == "writefeatures_csv":
+            component.outputdir = os.path.join(os.path.abspath(ctx.outputroot),\
+                                  os.path.basename(InTSFolder), "csv")
+
 #    for img in ts.iter_by_files():
     for img in ts.iter_by_files(ignored_timestamps):
 
