@@ -78,17 +78,6 @@ if not os.path.exists(inputRootPath):
 InTSFolderList = glob.glob(os.path.join(inputRootPath, '*' + view + '*'))
 print("Input timestreams: ", InTSFolderList)
 
-if opts['-o']:
-    outputRootPath = opts['-o']
-
-    if not os.path.exists(outputRootPath):
-        os.makedirs(outputRootPath)
-    if os.path.isfile(outputRootPath):
-        raise IOError("%s is a file"%outputRootPath)
-else:
-    outputRootPath = inputRootPath
-print('outputRootPath=', outputRootPath)
-
 # Pipeline configuration.
 if opts['-p']:
     tmpPath = opts['-p']
@@ -102,9 +91,69 @@ plConf = pipeconf.PCFGConfig(tmpPath, 2)
 if opts['-t']:
     tmpPath = opts['-t']
 else:
-    tmpPath = os.path.join(inputRootPath, '_data', 'timestream_{}.yml'.format(view))
+    tmpPath = os.path.join(inputRootPath, '_data', 'timestream.yml')
 if not os.path.isfile(tmpPath):
     raise IOError("%s is not a file"%tmpPath)
+tsConf = pipeconf.PCFGConfig(tmpPath, 1)
+
+# Merge timestream configuration into pipeline.
+for tsComp in tsConf.listSubSecNames():
+    merged = False
+    tsss = tsConf.getVal(tsComp)
+    for pComp in plConf.pipeline.listSubSecNames():
+        plss = plConf.getVal("pipeline."+pComp)
+        if plss.name == tsComp:
+            # Merge if we find a pipeline component with the same name.
+            pipeconf.PCFGConfig.merge(tsss, plss)
+            merged = True
+            break
+    if merged:
+        continue
+    plConf.general.setVal(tsComp, tsss)
+
+# Add whatever came in the command line
+if opts['--set']:
+    for setelem in opts["--set"].split(','):
+        #FIXME: print help if any exceptions.
+        cName, cVal = setelem.split("=")
+        plConf.setVal(cName, cVal)
+
+# There are two output variables:
+# outputPath : Directory where resulting directories will be put
+# outputPathPrefix : Convenience var. outputPath/outputPrefix.
+#                    Where outputPrefix will identify all the outputs from
+#                    this run in that directory.
+if not plConf.general.hasSubSecName("outputPrefix"):
+    plConf.general.setVal("outputPrefix",
+                          os.path.basename(os.path.abspath(inputRootPath)))
+
+if opts['-o']:
+    outputRootPath = opts['-o']
+    plConf.general.setVal("outputPath", outputRootPath)
+
+    if os.path.isfile(plConf.general.outputPath):
+        raise IOError("%s is a file" % plConf.general.outputPath)
+    if not os.path.exists(plConf.general.outputPath):
+        os.makedirs(plConf.general.outputPath)
+    outputPathPrefix = os.path.join(plConf.general.outputPath,
+                                    plConf.general.outputPrefix)
+    plConf.general.setVal("outputPathPrefix", outputPathPrefix)
+else:
+    outputRootPath = inputRootPath
+    plConf.general.setVal("outputPath", os.path.dirname(outputRootPath))
+    plConf.general.setVal("outputPathPrefix",
+                          os.path.join(plConf.general.outputPath,
+                                       plConf.general.outputPrefix))
+print('outputRootPath=', outputRootPath)
+
+# Timestream configuration
+if opts['-t']:
+    tmpPath = opts['-t']
+else:
+    tmpPath = os.path.join(inputRootPath,
+                           '_data', 'timestream_{}.yml'.format(view))
+if not os.path.isfile(tmpPath):
+    raise IOError("%s is not a file" % tmpPath)
 tsConf = pipeconf.PCFGConfig(tmpPath, 1)
 
 # Merge the two configurations
@@ -155,7 +204,7 @@ for InTSFolder in InTSFolderList:
 
     # Initialize the context
     ctx = pipeconf.PCFGSection("--")
-    ctx.setVal("ints",ts)
+    ctx.setVal("ints", ts)
 
     #create new timestream for output data
     existing_timestamps = []
@@ -168,14 +217,15 @@ for InTSFolder in InTSFolderList:
 
         # timeseries output input path plus a suffix
         tsoutpath = os.path.join(os.path.abspath(outputRootPath),
-                                 os.path.basename(InTSFolder) + \
+                                 os.path.basename(InTSFolder) +
                                  '-' + outstream["name"])
         print(tsoutpath)
         if "outpath" in outstream.keys():
             tsoutpath = outstream["outpath"]
 
-        if not os.path.exists(tsoutpath) or len(os.listdir(os.path.join(tsoutpath, '_data'))) == 0:
-            if not os.path.exists(tsoutpath) :
+        if not os.path.exists(tsoutpath) or \
+                len(os.listdir(os.path.join(tsoutpath, '_data'))) == 0:
+            if not os.path.exists(tsoutpath):
                 os.makedirs(tsoutpath)
             ts_out.create(tsoutpath)
             print("Timestream instance created:")
@@ -191,7 +241,7 @@ for InTSFolder in InTSFolderList:
         #context[outstream["name"]] = ts_out
 
     # get ignored list as intersection of all time stamp lists
-    for i,timestamps in enumerate(existing_timestamps):
+    for i, timestamps in enumerate(existing_timestamps):
         if i == 0:
             ts_set = set(timestamps)
         else:
@@ -206,9 +256,11 @@ for InTSFolder in InTSFolderList:
     if not os.path.exists(ctx.outputroot):
         os.mkdir(ctx.outputroot)
 
-    # Dictionary where we put all values that should be added with an image as soon
-    # as it is output with the TimeStream
+    # Dictionary where we put all values that should be added with an image
+    # as soon as it is output with the TimeStream
     ctx.setVal("outputwithimage", {})
+    ctx.setVal("outputPathPrefix", plConf.general.outputPathPrefix)
+    ctx.setVal("outputPrefix", plConf.general.outputPrefix)
 
     # initialise processing pipeline
     pl = pipeline.ImagePipeline(plConf.pipeline, ctx)
@@ -216,8 +268,9 @@ for InTSFolder in InTSFolderList:
     # set csv output folder
     for component in pl.pipeline:
         if component.actName == "writefeatures_csv":
-            component.outputdir = os.path.join(os.path.abspath(ctx.outputroot),\
-                                  os.path.basename(InTSFolder), "csv")
+            component.outputdir = os.path.join(os.path.abspath(ctx.outputroot),
+                                               os.path.basename(InTSFolder),
+                                               "csv")
 
 #    for img in ts.iter_by_files():
     for img in ts.iter_by_files(ignored_timestamps):
