@@ -20,7 +20,8 @@ else:
     RootPath = sys.argv[1]
 
 Views = ["SIDE", "TOP"]
-Features = ["area", "compactness", "eccentricity", "perimeter", "roundness"]
+Features = ["area", "compactness", "eccentricity", "perimeter", "roundness",
+            "height", "wilting", "height2", "wilting2"]
 FoldersViews = [glob.glob(os.path.join(RootPath, "*" + View)) for View in Views]
 FoldersViews = [sorted(FoldersView) for FoldersView in FoldersViews]
 # remove folder of background images

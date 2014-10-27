@@ -17,7 +17,8 @@ import os
 
 CLI_OPTS = """
 USAGE:
-    playtTimestream.py -i IN [-d DELAY] [--int INTERVAL] [-s START] [-e END] [--sh STARTHOUR] [--eh ENDHOUR] [-o OUT] [--byfiles]
+    playtTimestream.py -i IN [-d DELAY] [--int INTERVAL] [-s START] [-e END]
+                       [--sh STARTHOUR] [--eh ENDHOUR] [-o OUT] [--byfiles]
 
 OPTIONS:
     -i IN          Input timestream directory

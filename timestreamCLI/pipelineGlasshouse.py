@@ -6,43 +6,18 @@ Created on Wed Aug 13 16:36:05 2014
 """
 from __future__ import absolute_import, division, print_function
 
-import csv
+from timestream.manipulate import PCException
+
 import glob
 import docopt
-import sys, os
+import os
 import timestream
 import logging
 import timestream.manipulate.configuration as pipeconf
 import timestream.manipulate.pipeline as pipeline
-from timestream.manipulate.pipecomponents import PCExBrakeInPipeline
-import yaml
-import datetime
 
-#def getColumnCVS(FileCVS, columnID):
-#    if len(FileCVS) == 0:
-#        print('File name is empty')
-#        return []
-#    column = []
-#    with open(FileCVS, 'rb') as csvfile:
-#        fp = csv.reader(csvfile, delimiter=',')
-#        for i,row in enumerate(fp):
-#            if i == 0: # header
-#                print(', '.join(row))
-#            else:
-#                column.append(row[columnID])
-#    return column
-
-#PlantListCSV = '/home/chuong/Data/phenocam/a_data/TimeStreams/Borevitz/BVZ0038/_data/BVZ0038-WheatDroughtTrial-Labels.csv'
-#ExpFolder = '/home/chuong/Data/phenocam/a_data/TimeStreams/Borevitz/BVZ0038/_data/BVZ0038-PlantTS'
-##ExpFolder = '/home/chuong/Data/BVZ0038-PlantTS'
-#plantList = getColumnCVS(PlantListCSV, 2)
-#print(plantList)
-#
-#TSFolderList = glob.glob(os.path.join(ExpFolder, '*'))
-#for TSFolder in TSFolderList:
-#    print(TSFolder)
-#    ts =
-#    break
+timestream.setup_module_logging(level=logging.INFO)
+LOG = logging.getLogger("timestreamlib")
 
 CLI_OPTS = """
 USAGE:
@@ -63,7 +38,7 @@ OPTIONS:
 """
 opts = docopt.docopt(CLI_OPTS)
 
-view = 'SIDE' # 'TOP'
+view = 'SIDE'  # 'TOP'
 if opts['-v']:
     view = opts['-v'].upper()
     if view not in ['SIDE', 'TOP']:
@@ -72,9 +47,9 @@ if opts['-v']:
 inputRootPath = opts['-i']
 print('inputRootPath=', inputRootPath)
 if os.path.isfile(inputRootPath):
-    raise IOError("%s is a file. Expected a directory"%inputRootPath)
+    raise IOError("%s is a file. Expected a directory" % inputRootPath)
 if not os.path.exists(inputRootPath):
-    raise IOError("%s does not exists"%inputRootPath)
+    raise IOError("%s does not exists" % inputRootPath)
 InTSFolderList = glob.glob(os.path.join(inputRootPath, '*' + view + '*'))
 print("Input timestreams: ", InTSFolderList)
 
@@ -259,18 +234,13 @@ for InTSFolder in InTSFolderList:
     # Dictionary where we put all values that should be added with an image
     # as soon as it is output with the TimeStream
     ctx.setVal("outputwithimage", {})
-    ctx.setVal("outputPathPrefix", plConf.general.outputPathPrefix)
-    ctx.setVal("outputPrefix", plConf.general.outputPrefix)
+    ctx.setVal("outputPathPrefix",
+               os.path.join(os.path.abspath(ctx.outputroot),
+                            os.path.basename(InTSFolder)))
+    ctx.setVal("outputPrefix", os.path.basename(InTSFolder))
 
     # initialise processing pipeline
     pl = pipeline.ImagePipeline(plConf.pipeline, ctx)
-
-    # set csv output folder
-    for component in pl.pipeline:
-        if component.actName == "writefeatures_csv":
-            component.outputdir = os.path.join(os.path.abspath(ctx.outputroot),
-                                               os.path.basename(InTSFolder),
-                                               "csv")
 
 #    for img in ts.iter_by_files():
     for img in ts.iter_by_files(ignored_timestamps):
@@ -286,7 +256,7 @@ for InTSFolder in InTSFolderList:
         ctx.setVal("origImg", img)
         try:
             result = pl.process(ctx, [img], visualise)
-        except PCExBrakeInPipeline as bip:
-            print(bip.message)
+        except PCException as bip:
+            LOG.info(bip.message)
             continue
         print("Done")
