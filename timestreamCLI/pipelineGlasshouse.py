@@ -66,7 +66,8 @@ plConf = pipeconf.PCFGConfig(tmpPath, 2)
 if opts['-t']:
     tmpPath = opts['-t']
 else:
-    tmpPath = os.path.join(inputRootPath, '_data', 'timestream.yml')
+    tmpPath = os.path.join(inputRootPath, '_data', 
+                           'timestream_{}.yml'.format(view))
 if not os.path.isfile(tmpPath):
     raise IOError("%s is not a file"%tmpPath)
 tsConf = pipeconf.PCFGConfig(tmpPath, 1)
